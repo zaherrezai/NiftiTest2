@@ -9,9 +9,11 @@ import SwiftUI
 
 @main
 struct NiftiTest2App: App {
+	@StateObject var VM = viewModel()
     var body: some Scene {
         WindowGroup {
             ContentView()
+				.environmentObject(VM)
         }
     }
 }
