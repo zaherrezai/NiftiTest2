@@ -18,7 +18,7 @@ struct ContentView: View {
 			ZStack{
 				Color.blue.ignoresSafeArea()
 				if VM.globalVolum.count > 0{
-					LayerView(volum: VM.globalVolum, z: Int(currentLayer))
+					LayerViewZ(volum: VM.globalVolum, z: Int(currentLayer))
 				}
 				
 			}
@@ -39,6 +39,7 @@ struct ContentView: View {
 		
 	}
 }
+
 #Preview {
 	ContentView()
 }
@@ -48,7 +49,7 @@ class viewModel : ObservableObject{
 	@Published var globalVolum : [[[Float]]] = []
 	
 	func DownloadNifti() {
-		guard let url = URL(string: "https://github.com/neurolabusc/niivue-images/raw/refs/heads/main/CT_AVM.nii.gz") else {
+		guard let url = URL(string: "https://github.com/neurolabusc/niivue-images/raw/refs/heads/main/CT_Abdo.nii.gz") else {
 			print("invalid url")
 			return
 		}
@@ -100,7 +101,7 @@ class viewModel : ObservableObject{
 		let voxel = Int(readfloat32(header, offset: 108))
 		let voxelOffset = Int(voxel)
 		var result: [[[Float]]] = []
-		result = CreateVolum(data: rawData, dim1: Int(dim1), dim2: Int(dim2), dim3: Int(dim3), voxelOfsset: voxelOffset)
+		result = CreateVolumForX(data: rawData, dim1: Int(dim1), dim2: Int(dim2), dim3: Int(dim3), voxelOfsset: voxelOffset)
 		DispatchQueue.main.async {
 			self.globalVolum = result
 		}
@@ -108,7 +109,7 @@ class viewModel : ObservableObject{
 	}
 	
 	
-	func CreateVolum (data : Data ,
+	func CreateVolumForZ (data : Data ,
 					  dim1 : Int ,
 					  dim2 : Int ,
 					  dim3 : Int ,
@@ -134,19 +135,67 @@ class viewModel : ObservableObject{
 				}
 			}
 		}
-		//for z in 50..<53 {
-			//for y in 50..<55 {
-				//print(voxelOfsset)
-				//print(Array(data[voxelOfsset..<voxelOfsset+20]))
-				//print(volum[z][y][50..<60])
-			//}
-		//}
+		return volum
+	}
+	func CreateVolumForX (data : Data ,
+					  dim1 : Int ,
+					  dim2 : Int ,
+					  dim3 : Int ,
+					  voxelOfsset : Int ) -> [[[Float]]]{
+		var volum =
+		Array(repeating: Array(
+			repeating: Array(
+				repeating: Float(0.0),
+				count: dim3),
+			count: dim2),
+			  count: dim1)
+		print("volum created")
+		var currentIndex = voxelOfsset
+		for z in 0..<dim3 {
+			for y in 0..<dim2 {
+				for x in 0..<dim1{
+					if currentIndex < data.count{
+						let binaryValue = data[currentIndex]
+						let lighness = Float(binaryValue) / 255
+						volum[x][y][z] = Float(lighness)
+						currentIndex += 1
+					}
+				}
+			}
+		}
 		return volum
 	}
 	
-	func ExtractLayers(globalVolum: [[[Float]]]){
-		
+	
+	func CreateVolumForY (data : Data ,
+					  dim1 : Int ,
+					  dim2 : Int ,
+					  dim3 : Int ,
+					  voxelOfsset : Int ) -> [[[Float]]]{
+		var volum =
+		Array(repeating: Array(
+			repeating: Array(
+				repeating: Float(0.0),
+				count: dim3),
+			count: dim1),
+			  count: dim2)
+		print("volum created")
+		var currentIndex = voxelOfsset
+		for z in 0..<dim3 {
+			for y in 0..<dim2 {
+				for x in 0..<dim1{
+					if currentIndex < data.count{
+						let binaryValue = data[currentIndex]
+						let lighness = Float(binaryValue) / 255
+						volum[y][x][z] = Float(lighness)
+						currentIndex += 1
+					}
+				}
+			}
+		}
+		return volum
 	}
+	
 	
 	
 	func readInt16(_ data : Data , offset : Int) -> Int16 {
@@ -170,27 +219,44 @@ class viewModel : ObservableObject{
 	}
 
 
-	func indextoxyz(index: Int, dimx: Int, dimy: Int, dimz: Int ) ->(x: Int, y: Int ,z: Int){
-		let z = index / (dimx * dimy)
-		let rest = index % (dimx * dimy)
-		let y = rest / dimx
-		let x = rest % dimx
-		return (x, y, z)
-	}
-	func printVoxel(from start: Int, count howmany: Int , volum : [[[Float]]]) {
-		let dimz = volum.count
-		let dimy = volum[0].count
-		let dimx = volum[0][0].count
-		let total = dimx * dimy * dimz
-		let endIndex = min(start + howmany , total)
-		for index in start..<endIndex {
-			let coord = indextoxyz(index: index, dimx: dimx, dimy: dimy, dimz: dimz)
-			let value = volum[coord.z][coord.y][coord.x]
-			print("\(index) -> (\(coord.z),\(coord.y),\(coord.x) = \(value)")
+	
+	
+}
+struct LayerViewX : View{
+	@EnvironmentObject var VM : viewModel
+	let volum : [[[Float]]]
+	let x : Int
+	var body : some View {
+		let layer = volum[x]
+		VStack(spacing: 0){
+			ForEach(0..<layer.count, id: \.self){y in
+				HStack(spacing: 0){
+					ForEach(0..<layer[y].count, id: \.self){ z in
+						Pixel(light: layer[y][z])
+					}
+				}
+			}
 		}
 	}
 }
-struct LayerView : View{
+struct LayerViewY : View{
+	@EnvironmentObject var VM : viewModel
+	let volum : [[[Float]]]
+	let y : Int
+	var body : some View {
+		let layer = volum[y]
+		VStack(spacing: 0){
+			ForEach(0..<layer.count, id: \.self){x in
+				HStack(spacing: 0){
+					ForEach(0..<layer[x].count, id: \.self){ z in
+						Pixel(light: layer[x][z])
+					}
+				}
+			}
+		}
+	}
+}
+struct LayerViewZ : View{
 	@EnvironmentObject var VM : viewModel
 	let volum : [[[Float]]]
 	let z : Int
@@ -216,3 +282,24 @@ struct Pixel: View {
 			.frame(width: 1, height: 1)
 	}
 }
+
+
+//func indextoxyz(index: Int, dimx: Int, dimy: Int, dimz: Int ) ->(x: Int, y: Int ,z: Int){
+//	   let z = index / (dimx * dimy)
+//	   let rest = index % (dimx * dimy)
+//	   let y = rest / dimx
+//	   let x = rest % dimx
+//	   return (x, y, z)
+//   }
+//   func printVoxel(from start: Int, count howmany: Int , volum : [[[Float]]]) {
+//	   let dimz = volum.count
+//	   let dimy = volum[0].count
+//	   let dimx = volum[0][0].count
+//	   let total = dimx * dimy * dimz
+//	   let endIndex = min(start + howmany , total)
+//	   for index in start..<endIndex {
+//		   let coord = indextoxyz(index: index, dimx: dimx, dimy: dimy, dimz: dimz)
+//		   let value = volum[coord.z][coord.y][coord.x]
+//		   print("\(index) -> (\(coord.z),\(coord.y),\(coord.x) = \(value)")
+//	   }
+//   }
